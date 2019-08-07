@@ -2,14 +2,14 @@
 
 ## Dicom Bulk Importer Azure Function
 
-The Bulk Importer is a Azure Function which gets triggered when a file gets uploaded to a `dicomimports` blob container. The function checks the file is a valid Dicom file then attempts to post the file to a Store endpoint of the Dicom Server.
+The Bulk Importer is a Azure Function which gets triggered when a file gets uploaded to a `'dicomimport'` blob container. The function checks the file is a valid Dicom file then attempts to post the file to a Store endpoint of the Dicom Server.
 
 The aim of this project is to bring convenience to bulk importing dicom files and will be especially useful when testing the server. All you need to do is upload files to a blob container then check them again later.
 
 The project also acts as a sample showing how the Store endpoint can be used.
 
 
-If all files have been removed from the `dicomimport`, it means they have been injested successfully.  If the file was invalid, or there were other processing errors, the file gets transferred from `dicomimports` into a second container called `dicomrejectedimports`.
+If all files have been removed from the `'dicomimport'`, it means they have been injested successfully.  If the file was invalid, or there were other processing errors, the file gets transferred from `'dicomimport'` into a second container called `dicomrejectedimports`.
 
 ### Important
 
@@ -31,4 +31,4 @@ Using the Storage Explorer you can navigate to the Emulator's Blob Store and add
 
 You can run the Azure function in Visual Studio. Visual Studio will startup the Azure Functions Core Tools and open a log.
 
-While running, the function will attempt to injest any dicom files in the `dicomimport` container of your Azure Emulator and any additional files which get added to the container.
+While running, the function will attempt to injest any dicom files in the `'dicomimport'` container of your Azure Emulator and any additional files which get added to the container.
