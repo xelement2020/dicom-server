@@ -31,4 +31,4 @@ Using the Storage Explorer you can navigate to the Emulator's Blob Store and add
 
 You can run the Azure function in Visual Studio. Visual Studio will startup the Azure Functions Core Tools and open a log.
 
-While running, the function will attempt to injest any dicom files in the `dicomimports` container of your Azure Emulator and any additional files which get added to the container.
+While running, the function will attempt to injest any dicom files in the `dicomimport` container of your Azure Emulator and any additional files which get added to the container.
