@@ -7,11 +7,11 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Dicom;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
-using Microsoft.Net.Http.Headers;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 
@@ -19,26 +19,23 @@ namespace DicomImporter
 {
     public static class DicomFileBlobTrigger
     {
+        private static readonly string StudiesPostUrl = $"{Environment.GetEnvironmentVariable("DicomServerUrl")}/studies";
+        private static readonly string ImportContainerName = "dicomimport";
+        private static readonly string RejectContainerName = "dicomrejectedimports";
+
+        public static readonly MediaTypeWithQualityHeaderValue MediaTypeApplicationDicom = new MediaTypeWithQualityHeaderValue("application/dicom");
+        public static readonly MediaTypeWithQualityHeaderValue MediaTypeApplicationDicomJson = new MediaTypeWithQualityHeaderValue("application/dicom+json");
+
         [FunctionName("DicomFileBlobTrigger")]
         public static async Task Run([BlobTrigger("dicomimport/{name}")]Stream myBlob, string name, ILogger log)
         {
             log.LogInformation($"C# Blob trigger function Processed blob\n Name:{name} \n Size: {myBlob.Length} Bytes");
 
-            string studyInstanceUID = string.Empty;
-            string seriesUID = string.Empty;
-            string sopInstanceUID = string.Empty;
-
-            // Check the DICOM file is valid
-
+            // Check the DICOM file can be opened
             DicomFile dicomFile = null;
             try
             {
                 dicomFile = await DicomFile.OpenAsync(myBlob);
-                DicomDataset dicomDataset = dicomFile.Dataset;
-
-                studyInstanceUID = dicomDataset.GetSingleValue<string>(DicomTag.StudyInstanceUID);
-                seriesUID = dicomDataset.GetSingleValue<string>(DicomTag.SeriesInstanceUID);
-                sopInstanceUID = dicomDataset.GetSingleValue<string>(DicomTag.SOPInstanceUID);
             }
             catch
             {
@@ -48,33 +45,10 @@ namespace DicomImporter
             }
 
             // Post the Dicom file to the server
-
-            var dicomWebClient = new DicomWebClient(new HttpClient());
             HttpStatusCode response = HttpStatusCode.Unused;
-
-            var request = new HttpRequestMessage(HttpMethod.Post, "studies");
-            request.Headers.Add(HeaderNames.Accept, DicomWebClient.MediaTypeApplicationDicomJson.MediaType);
-
-            var multiContent = new MultipartContent("related");
-            multiContent.Headers.ContentType.Parameters.Add(new System.Net.Http.Headers.NameValueHeaderValue("type", $"\"{DicomWebClient.MediaTypeApplicationDicom.MediaType}\""));
-
-            var byteContent = new ByteArrayContent(Array.Empty<byte>());
-            byteContent.Headers.ContentType = DicomWebClient.MediaTypeApplicationDicom;
-            multiContent.Add(byteContent);
-
-            using (var stream = new MemoryStream())
-            {
-                await dicomFile.SaveAsync(stream);
-
-                var validByteContent = new ByteArrayContent(stream.ToArray());
-                validByteContent.Headers.ContentType = DicomWebClient.MediaTypeApplicationDicom;
-                multiContent.Add(validByteContent);
-            }
-
-            request.Content = multiContent;
             try
             {
-                response = await dicomWebClient.PostMultipartContentAsync(multiContent, "http://localhost:63837/studies");
+                response = await PostDicomFile(dicomFile);
             }
             catch
             {
@@ -82,19 +56,61 @@ namespace DicomImporter
                 return;
             }
 
-            if (response != HttpStatusCode.Accepted)
+            switch (response)
             {
-                log.LogError($"Server returned {response} and did not accept the file.");
-                await MoveBlobToRejected(name, log);
-                return;
+                case HttpStatusCode.Accepted:
+                    log.LogInformation("Server accepted the file.");
+                    break;
+                case HttpStatusCode.BadRequest:
+                    log.LogError("Server did not accept the file as it was not a valid DICOM file.");
+                    await MoveBlobToRejected(name, log);
+                    return;
+                case HttpStatusCode.Conflict:
+                    log.LogError("Server did not accept the file as a file with the UIDs already exists");
+                    await MoveBlobToRejected(name, log);
+                    return;
+                default:
+                    log.LogError($"Server returned {response} and did not accept the file.");
+                    await MoveBlobToRejected(name, log);
+                    return;
             }
 
             await RemoveBlob(name, log);
         }
 
+        private static async Task<HttpStatusCode> PostDicomFile(DicomFile dicomFile)
+        {
+            var multiContent = new MultipartContent("related");
+            multiContent.Headers.ContentType.Parameters.Add(new NameValueHeaderValue("type", $"\"{MediaTypeApplicationDicom.MediaType}\""));
+
+            var byteContent = new ByteArrayContent(Array.Empty<byte>());
+            byteContent.Headers.ContentType = MediaTypeApplicationDicom;
+            multiContent.Add(byteContent);
+
+            using (var stream = new MemoryStream())
+            {
+                await dicomFile.SaveAsync(stream);
+
+                var validByteContent = new ByteArrayContent(stream.ToArray());
+                validByteContent.Headers.ContentType = MediaTypeApplicationDicom;
+                multiContent.Add(validByteContent);
+            }
+
+            var httpClient = new HttpClient();
+
+            var request = new HttpRequestMessage(HttpMethod.Post, StudiesPostUrl);
+            request.Headers.Accept.Add(MediaTypeApplicationDicomJson);
+            request.Content = multiContent;
+
+            using (HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead))
+            {
+                return response.StatusCode;
+            }
+        }
+
         private static CloudBlockBlob GetBlobReference(string containerName, string blobName, ILogger log)
         {
-            var connectionString = System.Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+            var connectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
             if (CloudStorageAccount.TryParse(connectionString, out CloudStorageAccount storageAccount))
             {
                 try
@@ -119,8 +135,8 @@ namespace DicomImporter
 
         private static async Task MoveBlobToRejected(string name, ILogger log)
         {
-            CloudBlockBlob srcBlob = GetBlobReference("dicomimport", name, log);
-            CloudBlockBlob destBlob = GetBlobReference("dicomrejectedimports", name, log);
+            CloudBlockBlob srcBlob = GetBlobReference(ImportContainerName, name, log);
+            CloudBlockBlob destBlob = GetBlobReference(RejectContainerName, name, log);
 
             await destBlob.StartCopyAsync(srcBlob);
             await srcBlob.DeleteAsync();
@@ -128,7 +144,7 @@ namespace DicomImporter
 
         private static async Task RemoveBlob(string name, ILogger log)
         {
-            CloudBlockBlob srcBlob = GetBlobReference("dicomimport", name, log);
+            CloudBlockBlob srcBlob = GetBlobReference(ImportContainerName, name, log);
             await srcBlob.DeleteAsync();
         }
     }

@@ -9,7 +9,9 @@ The aim of this project is to bring convenience to bulk importing dicom files an
 The project also acts as a sample showing how the Store endpoint can be used.
 
 
-If all files have been removed from the `'dicomimport'`, it means they have been injested successfully.  If the file was invalid, or there were other processing errors, the file gets transferred from `'dicomimport'` into a second container called `dicomrejectedimports`.
+If all files have been removed from the `'dicomimport'` container, it means they have been injested successfully.  If a file was invalid, or there were other processing errors, the file gets transferred from `'dicomimport'` into a second container called `'dicomrejectedimports'`.
+
+Currently it assumes there is no authentication required by the Dicom Server.
 
 ### Important
 
@@ -19,13 +21,30 @@ You should also be aware that while testing locally you might encounter Storage 
 
 The Azurite emulator doesn't have these problems, but it's currently not compatible with the Azure Functions Core Tools so will not work as an alternative.
 
+### Deploying
+
+The Azure Function can be deployed using the [Azure Portal](https://portal.azure.com/).
+
+When deploying, the following environment variables should be set:  
+```
+AzureWebJobsStorage=<STORAGE ACCOUNT CONNECTION STRING>
+DicomServerUrl=<URL OF DICOM SERVER>
+```
+
+Or alternatively you can use the Azure CLI for a single command line deployment of the container instance:
+```
+az container create --resource-group <RESOURCE GROUP NAME> --image reponame/dicomimporter --name dicomimporter1 --cpu 2 --memory 2 --environment-variables AzureWebJobsStorage='<STORAGE ACCOUNT CONNECTION STRING>' DicomServerUrl='<URL OF DICOM SERVER>' MaxDegreeOfParallelism=16
+```
+
 ### Local Testing
 
 To test the Azure Function locally you first need to be running the Dicom Server locally using the Azure Cosmos and Storage Emulators.
 
 You also need to have the [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools) installed, ideally version 2.7 or later.
 
-Also, you'll need a way of loading blobs into the Blob Store of the Storage Emulator. The easiest way to do this is using the [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/).
+You can change the environment variables listed above in the `localsettings.json` file. The default values should work out-of-the-box providing your Dicom Server instance is running on the default port `63837`.
+
+You'll need a way of loading blobs into the Blob Store of the Storage Emulator. The easiest way to do this is using the [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/).
 
 Using the Storage Explorer you can navigate to the Emulator's Blob Store and add a Blob Container called `'dicomimport'`. With the container selected you can upload files or an entire folder. The names of the files you upload do not matter.
 
