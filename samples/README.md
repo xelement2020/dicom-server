@@ -2,26 +2,30 @@
 
 ## Dicom Bulk Importer Azure Function
 
-The Bulk Importer is a Azure Function which gets triggered when a file gets uploaded to a `'dicomimport'` blob container. The function checks the file is a valid Dicom file then attempts to post the file to a Store endpoint of the Dicom Server.
+The Bulk Importer is an Azure Function which gets triggered when a file gets uploaded to a `'dicomimport'` blob container. The function checks the file is a valid Dicom file then attempts to post the file to a Store endpoint of the Dicom Server.
 
 The aim of this project is to bring convenience to bulk importing dicom files and will be especially useful when testing the server. All you need to do is upload files to a blob container then check them again later.
 
 The project also acts as a sample showing how the Store endpoint can be used.
 
 
-If all files have been removed from the `'dicomimport'` container, it means they have been injested successfully.  If a file was invalid, or there were other processing errors, the file gets transferred from `'dicomimport'` into a second container called `'dicomrejectedimports'`.
+If all files have been removed from the `'dicomimport'` container, it means they have been injested successfully. If a file was invalid, or there were other processing errors, the file gets transferred from `'dicomimport'` into a second container called `'dicomrejectedimports'`.
 
 Currently it assumes there is no authentication required by the Dicom Server.
 
 ### Important
 
-Note that the bulk importer has only been tested locally so far.
-
-You should also be aware that while testing locally you might encounter Storage Exceptions from the Dicom Server's Store endpoint. If these exceptions contain some 500 internal server errors from Blob Storage, this is a known bug with the Azure Storage Emulator.
+You should be aware that while testing locally you might encounter Storage Exceptions from the Dicom Server's Store endpoint. If these exceptions contain some 500 internal server errors from Blob Storage, this is a known bug with the Azure Storage Emulator.
 
 The Azurite emulator doesn't have these problems, but it's currently not compatible with the Azure Functions Core Tools so will not work as an alternative.
 
 ### Deploying
+
+You can deploy using the Azure Resource Manager Deployment Template which is temporarily on the branch `personal/james-clements/deployment-templates` with [documentation here](https://github.com/microsoft/dicom-server/tree/personal/james-clements/deployment-templates/deployment).
+
+#### Deploying Manually
+
+( *TODO:* These instuctions for deploying manually can be completed at a later date and used in documentation for the Dicom Server in a similar way to FHIR Server documentation )
 
 The Azure Function can be deployed using the [Azure Portal](https://portal.azure.com/).
 
