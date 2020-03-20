@@ -1,0 +1,12 @@
+name: PR Integration Tests - $(Date:yyyyMMdd)$(Rev:-r)
+variables:
+  resourceGroupNamePrefix: 'msh-dicom-pr-'
+  resourceGroupRegion: 'South Central US'
+
+steps:
+
+  - powershell: |
+      $pr = $env:BUILD_SOURCEBRANCH.split('/')[2]
+      $deploymentName = "$(resourceGroupNamePrefix)$(pr)"
+
+      Write-Host "$(deploymentName)"
