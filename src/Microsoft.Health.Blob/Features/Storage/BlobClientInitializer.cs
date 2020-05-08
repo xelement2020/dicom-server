@@ -41,10 +41,10 @@ namespace Microsoft.Health.Blob.Features.Storage
 
             // Configure the blob client default request options and retry logic
             blobClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(
-                deltaBackoff: TimeSpan.FromSeconds(configuration.RequestOptions.ExponentialRetryBackoffDeltaInSeconds),
+                deltaBackoff: configuration.RequestOptions.ExponentialRetryBackoffDelta,
                 maxAttempts: configuration.RequestOptions.ExponentialRetryMaxAttempts);
-            blobClient.DefaultRequestOptions.MaximumExecutionTime = TimeSpan.FromMinutes(configuration.RequestOptions.ServerTimeoutInMinutes);
-            blobClient.DefaultRequestOptions.ServerTimeout = TimeSpan.FromMinutes(configuration.RequestOptions.ServerTimeoutInMinutes);
+            blobClient.DefaultRequestOptions.MaximumExecutionTime = configuration.RequestOptions.ServerTimeout;
+            blobClient.DefaultRequestOptions.ServerTimeout = configuration.RequestOptions.ServerTimeout;
             blobClient.DefaultRequestOptions.ParallelOperationThreadCount = configuration.RequestOptions.ParallelOperationThreadCount;
 
             return blobClient;
