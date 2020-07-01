@@ -11,56 +11,27 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Azure.Core;
-using Azure.Identity;
-using Azure.Security.KeyVault.Secrets;
 using Dicom;
 using Microsoft.Azure.ServiceBus;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Health.Dicom.Tools.ScaleTesting.Common;
+using Microsoft.Health.Dicom.Tools.ScaleTesting.Common.Configuration;
 
 namespace Microsoft.Health.Dicom.Tools.ScaleTesting.MessageHandler
 {
     public class Program
     {
-        private static string _serviceBusConnectionString;
-        private static string _topicName;
-        private const string SubscriptionName = "s1";
-
         private static ISubscriptionClient subscriptionClient;
-
-        private const string WebServerUrl = "http://dicom-server-ii.azurewebsites.net";
         private static DicomWebClient client;
+
+        private static readonly EnvironmentConfiguration _environmentConfiguration = new EnvironmentConfiguration();
 
         private static string[] _separators = new string[] { "\t", "  ", " " };
 
         public static async Task Main(string[] args)
         {
-            SecretClientOptions options = new SecretClientOptions()
-            {
-                Retry =
-                {
-                    Delay = TimeSpan.FromSeconds(2),
-                    MaxDelay = TimeSpan.FromSeconds(16),
-                    MaxRetries = 5,
-                    Mode = RetryMode.Exponential,
-                },
-            };
-            var client = new SecretClient(new Uri("https://dicom-client.vault.azure.net/"), new DefaultAzureCredential(), options);
+            _environmentConfiguration.SetupConfiguration();
 
-            KeyVaultSecret secret = client.GetSecret("ServiceBusConnectionString");
-
-            _serviceBusConnectionString = secret.Value;
-
-            secret = client.GetSecret("AppConfiguration");
-            var builder = new ConfigurationBuilder();
-            builder.AddAzureAppConfiguration(secret.Value);
-
-            var config = builder.Build();
-            var runType = config["RunType"];
-            _topicName = runType;
-
-            subscriptionClient = new SubscriptionClient(_serviceBusConnectionString, _topicName, SubscriptionName, ReceiveMode.PeekLock);
+            subscriptionClient = new SubscriptionClient(_environmentConfiguration.ServerBus.ConnectionString, _environmentConfiguration.ServerBus.Topic, _environmentConfiguration.ServerBus.Subscription, ReceiveMode.PeekLock);
 
             SetupDicomWebClient();
 
@@ -75,7 +46,7 @@ namespace Microsoft.Health.Dicom.Tools.ScaleTesting.MessageHandler
         private static void SetupDicomWebClient()
         {
             var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri(WebServerUrl);
+            httpClient.BaseAddress = new Uri(_environmentConfiguration.DicomEndpoint);
 
             client = new DicomWebClient(httpClient, new Microsoft.IO.RecyclableMemoryStreamManager());
         }
@@ -104,7 +75,7 @@ namespace Microsoft.Health.Dicom.Tools.ScaleTesting.MessageHandler
             // Process the message.
             Console.WriteLine($"Received message: SequenceNumber:{message.SystemProperties.SequenceNumber} Body:{Encoding.UTF8.GetString(message.Body)}");
 
-            switch (_topicName)
+            switch (_environmentConfiguration.ServerBus.Topic)
             {
                 case "stow-rs":
                 case "stow-rs-test":

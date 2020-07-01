@@ -1,0 +1,8 @@
+﻿{
+    "Environment": {
+        "KeyVaultEndpoint": "https://dicom-client.vault.azure.net/",
+        "DicomEndpoint": "http://dicom-server-ii.azurewebsites.net",
+        "ServiceBus": {
+        }
+    }
+}
