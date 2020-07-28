@@ -5,19 +5,13 @@
 
 using Microsoft.Health.Dicom.Core.Exceptions;
 
-namespace Microsoft.Health.Dicom.Core.Features.Validation
+namespace Microsoft.Health.Dicom.Api.Web
 {
-    public static class UidValidator
+    public class DicomFileLengthLimitExceededException : ValidationException
     {
-        public static void Validate(string value, string name)
+        public DicomFileLengthLimitExceededException(long maxAllowedLength)
+           : base(string.Format(DicomApiResource.DicomFileLengthLimitExceeded, maxAllowedLength))
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                throw new InvalidIdentifierException(value, name);
-            }
-
-            // validate the value
-            DicomElementMinimumValidation.ValidateUI(value, name);
         }
     }
 }
