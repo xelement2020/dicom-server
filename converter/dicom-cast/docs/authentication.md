@@ -3,6 +3,7 @@
 The DICOM cast project supports connecting to both DICOM and FHIR servers that require authentication. Currently there are three types of authentication supported for both servers. The authentication can be configured via the application settings by the appropriate values in the `Authentication` property of the given server.
 
 ## Managed Identity
+
 This option uses the identity of the deployed DICOM cast instance to communicate with the server.
 
 ```json
@@ -21,6 +22,7 @@ This option uses the identity of the deployed DICOM cast instance to communicate
 ```
 
 ## OAuth2 Client Credential
+
 This option uses a `client_credentials` OAuth2 grant to obtain an identity to communicate with the server.
 
 ```json
@@ -43,6 +45,7 @@ This option uses a `client_credentials` OAuth2 grant to obtain an identity to co
 ```
 
 ## OAuth2 User Password
+
 This option uses a `password` OAuth2 grant to obtain an identity to communicate with the server.
 
 ```json
@@ -72,7 +75,7 @@ There are currently two ways provided to store secrets within the application.
 
 ### User-Secrets
 
-User secrets are enabled when the `EnvironmentName` is `Development`. You can read more about the use of user secrets in [this article](https://docs.microsoft.com/en-us/aspnet/core/security/app-secrets?view=aspnetcore-3.1).
+User secrets are enabled when the `EnvironmentName` is `Development`. You can read more about the use of user secrets in [Safe storage of app secrets in development in ASP.NET Core](https://docs.microsoft.com/aspnet/core/security/app-secrets?view=aspnetcore-3.1).
 
 ### KeyVault
 

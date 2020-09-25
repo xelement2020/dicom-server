@@ -2,7 +2,7 @@
 
 > This is currently a work-in progress document
 
-The **Azure for Health API** supports a subset of the DICOM Web standard. Support includes:
+The **Azure for Health API** supports a subset of the DICOMweb&trade; Standard. Support includes:
 
 - [Store (STOW-RS)](#store-stow-rs)
 - [Retrieve (WADO-RS)](#retrieve-wado-rs)
@@ -44,6 +44,8 @@ The following DICOM elements are required to be present in every DICOM file atte
 > Note: All identifiers must be between 1 and 64 characters long, and only contain alpha numeric characters or the following special characters: '.', '-'.
 
 Each file stored must have a unique combination of StudyInstanceUID, SeriesInstanceUID and SopInstanceUID. The warning code `45070` will be returned if a file with the same identifiers already exists.
+
+> DICOM File Size Limit: there is a size limit of 2GB for a DICOM file by default.
 
 ### Store Response Status Codes
 
@@ -415,7 +417,7 @@ The query API will return one of the following status codes in the response:
 
 ## Delete
 
-This transaction is not part of the official DICOMweb&trade; standard. It uses the DELETE method to remove representations of Studies, Series, and Instances from the store.
+This transaction is not part of the official DICOMweb&trade; Standard. It uses the DELETE method to remove representations of Studies, Series, and Instances from the store.
 
 | Method | Path                                                    | Description |
 | :----- | :------------------------------------------------------ | :---------- |
