@@ -327,7 +327,7 @@ namespace Microsoft.Health.Dicom.Web.Tests.E2E.Rest
             });
 
             // Compare result datasets by serializing.
-            var jsonDicomConverter = new JsonDicomConverter();
+            var jsonDicomConverter = new Core.JsonDicomConverter();
             Assert.Equal(
                 JsonConvert.SerializeObject(expectedDataset, jsonDicomConverter),
                 JsonConvert.SerializeObject(responseInstance, jsonDicomConverter));

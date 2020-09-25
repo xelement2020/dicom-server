@@ -7,7 +7,6 @@ using System;
 using System.Linq;
 using System.Text;
 using Dicom;
-using Dicom.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Xunit;

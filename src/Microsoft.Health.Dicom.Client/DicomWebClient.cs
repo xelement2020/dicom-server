@@ -13,7 +13,6 @@ using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Dicom;
-using Dicom.Serialization;
 using EnsureThat;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Health.Dicom.Client.Models;

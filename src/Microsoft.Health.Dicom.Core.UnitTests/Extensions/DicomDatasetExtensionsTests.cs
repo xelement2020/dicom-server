@@ -9,7 +9,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Dicom;
-using Dicom.Serialization;
 using Microsoft.Health.Dicom.Core.Extensions;
 using Newtonsoft.Json;
 using Xunit;
