@@ -22,6 +22,11 @@ namespace Microsoft.Health.DicomCast.Core.Features.Worker.FhirTransaction
         T Endpoint { get; set; }
 
         /// <summary>
+        /// Gets or sets the endpoint to DicomWeb used by ImagingStudy.
+        /// </summary>
+        T Referrer { get; set; }
+
+        /// <summary>
         /// Gets or sets the imaging study.
         /// </summary>
         T ImagingStudy { get; set; }

@@ -34,6 +34,7 @@ namespace Microsoft.Health.DicomCast.Core.Features.Worker.FhirTransaction
 
             AddStartedElement(imagingStudy, dataset, context.UtcDateTimeOffset);
             AddImagingStudyEndpoint(imagingStudy, context);
+            AddImagingStudyReferrer(imagingStudy, context);
             AddModality(imagingStudy, dataset);
             AddNote(imagingStudy, dataset);
         }
@@ -62,6 +63,18 @@ namespace Microsoft.Health.DicomCast.Core.Features.Worker.FhirTransaction
             {
                 imagingStudy.Endpoint.Add(endpointReference);
             }
+        }
+
+        private void AddImagingStudyReferrer(ImagingStudy imagingStudy, FhirTransactionContext context)
+        {
+            var referrer = context.Request.Referrer.ResourceId.ToResourceReference();
+
+            if (imagingStudy.Referrer == null)
+            {
+                imagingStudy.Referrer = referrer;
+            }
+
+            // TODO: Figure out what to do if imaging Study has a referrer in case it is different
         }
 
         private void AddStartedElement(ImagingStudy imagingStudy, DicomDataset dataset, TimeSpan utcOffset)

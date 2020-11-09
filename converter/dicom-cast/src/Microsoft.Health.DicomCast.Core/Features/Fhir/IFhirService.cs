@@ -31,6 +31,14 @@ namespace Microsoft.Health.DicomCast.Core.Features.Fhir
         Task<ImagingStudy> RetrieveImagingStudyAsync(Identifier identifier, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Asynchronously retrieves an <see cref="Practitioner"/> resource from FHIR server matching the <paramref name="identifier"/>.
+        /// </summary>
+        /// <param name="identifier">The identifier of the practitioner.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task representing the retrieving operation.</returns>
+        Task<Practitioner> RetrievePractitionerAsync(Identifier identifier, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Asynchronously retrieves an <see cref="Endpoint"/> resource from FHIR server matching the <paramref name="queryParameter"/>.
         /// </summary>
         /// <param name="queryParameter">The queryparameter for endPoint.</param>

@@ -129,6 +129,11 @@ namespace Microsoft.Health.DicomCast.Core.Modules
                 .AsSelf()
                 .AsImplementedInterfaces();
 
+            /* services.Add<ReferrerPipelineStep>()
+                .Singleton()
+                .AsSelf()
+                .AsImplementedInterfaces();*/
+
             services.Add<ImagingStudyPipelineStep>()
                 .Singleton()
                 .AsSelf()

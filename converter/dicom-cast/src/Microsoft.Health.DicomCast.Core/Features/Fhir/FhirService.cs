@@ -47,6 +47,9 @@ namespace Microsoft.Health.DicomCast.Core.Features.Fhir
         public Task<ImagingStudy> RetrieveImagingStudyAsync(Identifier identifier, CancellationToken cancellationToken)
             => SearchByIdentifierAsync<ImagingStudy>(identifier, cancellationToken);
 
+        public Task<Practitioner> RetrievePractitionerAsync(Identifier identifier, CancellationToken cancellationToken)
+            => SearchByIdentifierAsync<Practitioner>(identifier, cancellationToken);
+
         /// <inheritdoc/>
         public Task<Endpoint> RetrieveEndpointAsync(string queryParameter, CancellationToken cancellationToken)
             => SearchByQueryParameterAsync<Endpoint>(queryParameter, cancellationToken);
