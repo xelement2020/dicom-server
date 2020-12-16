@@ -29,6 +29,28 @@ CREATE FULLTEXT CATALOG Dicom_Catalog WITH ACCENT_SENSITIVITY = OFF AS DEFAULT
 GO
 
 /*************************************************************
+    Custom Tag Table    
+**************************************************************/
+CREATE TABLE dbo.CustomTag (
+    [Key]                BIGINT                       NOT NULL, -- PK
+    Path                  VARCHAR(64)                  NOT NULL, -- Support to up to 8 embed levels
+    VR                    VARCHAR(2)                   NOT NULL,
+    Level                 TINYINT                      NOT NULL,
+    Status                TINYINT                      NOT NULL,
+)
+
+CREATE UNIQUE CLUSTERED INDEX IXC_CustomTag on dbo.CustomTag
+(
+    [Key]
+)
+
+--Filter indexes
+CREATE UNIQUE NONCLUSTERED INDEX IX_CustomTag_TagPath on dbo.CustomTag
+(
+    Path
+)
+
+/*************************************************************
     Instance Table
     Dicom instances with unique Study, Series and Instance Uid
 **************************************************************/
@@ -400,8 +422,49 @@ CREATE SEQUENCE dbo.InstanceKeySequence
     NO CYCLE
     CACHE 1000000
 
+CREATE SEQUENCE dbo.TagKeySequence
+    AS BIGINT
+    START WITH 1
+    INCREMENT BY 1
+    MINVALUE 1
+    NO CYCLE
+    CACHE 1000
+GO
+
+CREATE TYPE dbo.UDTCustomTag as TABLE(
+    TagKey                BIGINT                       NOT NULL, -- PK
+    Path                  VARCHAR(64)                  NOT NULL, -- Support to up to 8 embed levels
+    VR                    VARCHAR(2)                   NOT NULL,
+    Level                 TINYINT                      NOT NULL,
+    Status                TINYINT                      NOT NULL
+)
 
 GO
+
+CREATE PROCEDURE dbo.AddCustomTags
+    @customTags UDTCustomTag READONLY
+AS
+    SET NOCOUNT ON
+
+    SET XACT_ABORT ON
+    BEGIN TRANSACTION
+        -- Check if any tag already exist
+        SELECT tags1.TagKey FROM dbo.CustomTag as tags1 INNER JOIN @customTags  as tags2 on tags1.Path = tags2.Path
+	    DECLARE @existCount AS BIGINT
+	    SET @existCount = @@ROWCOUNT
+        IF @existCount <> 0
+        BEGIN
+            THROW 50410, 'custom tag already exist', @existCount;
+        END
+
+        --add to table 
+        INSERT INTO dbo.CustomTag (TagKey, Path, VR, Level, Status)
+        OUTPUT INSERTED.TagKey,INSERTED.Path,INSERTED.VR,INSERTED.Level,INSERTED.Status
+        SELECT NEXT VALUE FOR TagKeySequence,Path,VR,Level,2 FROM @customTags
+
+    COMMIT TRANSACTION
+GO
+
 /*************************************************************
     Stored procedures for adding an instance.
 **************************************************************/
