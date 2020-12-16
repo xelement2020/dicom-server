@@ -3,18 +3,15 @@
 // Licensed under the MIT License (MIT). See LICENSE in the repo root for license information.
 // -------------------------------------------------------------------------------------------------
 
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Health.Dicom.Core.Features.Model;
-using Microsoft.Health.Dicom.Core.Models;
 
 namespace Microsoft.Health.Dicom.Core.Features.CustomTag
 {
-    public interface ICustomTagStore
+    public interface ICustomTagIndexStore
     {
-        Task<IEnumerable<CustomTagEntry>> AddCustomTagsAsync(IEnumerable<CustomTagEntry> customTags, CancellationToken cancellationToken = default);
-
-        Task<IEnumerable<VersionedInstanceIdentifier>> GetVersionedInstancesAsync(long endWatermark, int top = 10, IndexStatus indexStatus = IndexStatus.Created, CancellationToken cancellationToken = default);
+        // TODO: make it allow add bunch indexes
+        Task AddCustomTagStringIndexes(long customTagKey, InstanceIdentifier instanceIdentifier, string indexValue, CancellationToken cancellationToken = default);
     }
 }

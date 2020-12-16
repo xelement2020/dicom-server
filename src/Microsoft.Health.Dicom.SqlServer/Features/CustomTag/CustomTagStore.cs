@@ -9,6 +9,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using EnsureThat;
 using Microsoft.Health.Dicom.Core.Features.CustomTag;
+using Microsoft.Health.Dicom.Core.Features.Model;
+using Microsoft.Health.Dicom.Core.Models;
 using Microsoft.Health.Dicom.SqlServer.Features.Schema.Model;
 using Microsoft.Health.SqlServer.Features.Client;
 using Microsoft.Health.SqlServer.Features.Storage;
@@ -51,6 +53,36 @@ namespace Microsoft.Health.Dicom.SqlServer.Features.CustomTag
                                rVR,
                                (CustomTagLevel)rLevel,
                                (CustomTagStatus)rStatus));
+                    }
+                }
+            }
+
+            return results;
+        }
+
+        public async Task<IEnumerable<VersionedInstanceIdentifier>> GetVersionedInstancesAsync(long endWatermark, int top = 10, IndexStatus indexStatus = IndexStatus.Created, CancellationToken cancellationToken = default)
+        {
+            List<VersionedInstanceIdentifier> results = new List<VersionedInstanceIdentifier>();
+            using (SqlConnectionWrapper sqlConnectionWrapper = await _sqlConnectionWrapperFactory.ObtainSqlConnectionWrapperAsync(cancellationToken))
+            using (SqlCommandWrapper sqlCommandWrapper = sqlConnectionWrapper.CreateSqlCommand())
+            {
+                VLatest.GetVersionedInstances.PopulateCommand(sqlCommandWrapper, endWatermark, top, (byte)indexStatus);
+
+                using (var reader = await sqlCommandWrapper.ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken))
+                {
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        (string rStudyInstanceUid, string rSeriesInstanceUid, string rSopInstanceUid, long rWatermark) = reader.ReadRow(
+                               VLatest.Instance.StudyInstanceUid,
+                               VLatest.Instance.SeriesInstanceUid,
+                               VLatest.Instance.SopInstanceUid,
+                               VLatest.Instance.Watermark);
+
+                        results.Add(new VersionedInstanceIdentifier(
+                               rStudyInstanceUid,
+                               rSeriesInstanceUid,
+                               rSopInstanceUid,
+                               rWatermark));
                     }
                 }
             }

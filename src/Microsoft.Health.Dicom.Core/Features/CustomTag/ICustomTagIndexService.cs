@@ -6,15 +6,13 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Dicom;
 using Microsoft.Health.Dicom.Core.Features.Model;
-using Microsoft.Health.Dicom.Core.Models;
 
 namespace Microsoft.Health.Dicom.Core.Features.CustomTag
 {
-    public interface ICustomTagStore
+    public interface ICustomTagIndexService
     {
-        Task<IEnumerable<CustomTagEntry>> AddCustomTagsAsync(IEnumerable<CustomTagEntry> customTags, CancellationToken cancellationToken = default);
-
-        Task<IEnumerable<VersionedInstanceIdentifier>> GetVersionedInstancesAsync(long endWatermark, int top = 10, IndexStatus indexStatus = IndexStatus.Created, CancellationToken cancellationToken = default);
+        Task AddCustomTagIndexes(Dictionary<long, DicomItem> customTagIndexes, InstanceIdentifier instanceIdentifier, CancellationToken cancellationToken = default);
     }
 }

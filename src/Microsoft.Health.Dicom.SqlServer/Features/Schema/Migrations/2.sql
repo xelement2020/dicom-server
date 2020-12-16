@@ -51,6 +51,27 @@ CREATE UNIQUE NONCLUSTERED INDEX IX_CustomTag_TagPath on dbo.CustomTag
 )
 
 /*************************************************************
+    Custom Tag Index String Table    
+**************************************************************/
+CREATE TABLE dbo.CustomTagIndexString (
+    TagKey   BIGINT   NOT NULL, -- PK
+    StudyKey BIGINT NOT NULL,    
+    SeriesKey BIGINT NULL,    
+    InstanceKey BIGINT NULL,        
+    StudyInstanceUid VARCHAR(64) NOT NULL,
+    SeriesInstanceUid VARCHAR(64) NULL,
+    SopInstanceUid VARCHAR(64) NULL,    
+    TagValue NVARCHAR(64) NOT NULL,
+)
+
+-- TODO:  optimize indexes
+CREATE UNIQUE CLUSTERED INDEX IXC_CustomTagIndexString on dbo.CustomTagIndexString
+(
+    TagKey
+)
+GO
+
+/*************************************************************
     Instance Table
     Dicom instances with unique Study, Series and Instance Uid
 **************************************************************/
@@ -432,37 +453,12 @@ CREATE SEQUENCE dbo.TagKeySequence
 GO
 
 CREATE TYPE dbo.UDTCustomTag as TABLE(
-    TagKey                BIGINT                       NOT NULL, -- PK
+    [Key]                BIGINT                       NOT NULL, -- PK
     Path                  VARCHAR(64)                  NOT NULL, -- Support to up to 8 embed levels
     VR                    VARCHAR(2)                   NOT NULL,
     Level                 TINYINT                      NOT NULL,
     Status                TINYINT                      NOT NULL
 )
-
-GO
-
-CREATE PROCEDURE dbo.AddCustomTags
-    @customTags UDTCustomTag READONLY
-AS
-    SET NOCOUNT ON
-
-    SET XACT_ABORT ON
-    BEGIN TRANSACTION
-        -- Check if any tag already exist
-        SELECT tags1.TagKey FROM dbo.CustomTag as tags1 INNER JOIN @customTags  as tags2 on tags1.Path = tags2.Path
-	    DECLARE @existCount AS BIGINT
-	    SET @existCount = @@ROWCOUNT
-        IF @existCount <> 0
-        BEGIN
-            THROW 50410, 'custom tag already exist', @existCount;
-        END
-
-        --add to table 
-        INSERT INTO dbo.CustomTag (TagKey, Path, VR, Level, Status)
-        OUTPUT INSERTED.TagKey,INSERTED.Path,INSERTED.VR,INSERTED.Level,INSERTED.Status
-        SELECT NEXT VALUE FOR TagKeySequence,Path,VR,Level,2 FROM @customTags
-
-    COMMIT TRANSACTION
 GO
 
 /*************************************************************
@@ -536,10 +532,8 @@ AS
         AND SopInstanceUid = @sopInstanceUid
 
     IF @@ROWCOUNT <> 0
-    BEGIN
         -- The instance already exists. Set the state = @existingStatus to indicate what state it is in.
         THROW 50409, 'Instance already exists', @existingStatus;
-    END
 
     -- The instance does not exist, insert it.
     SET @newWatermark = NEXT VALUE FOR dbo.WatermarkSequence
@@ -649,10 +643,8 @@ AS
     AND Watermark = @watermark
 
     IF @@ROWCOUNT = 0
-    BEGIN
         -- The instance does not exist. Perhaps it was deleted?
         THROW 50404, 'Instance does not exist', 1;
-    END
 
     -- Insert to change feed.
     -- Currently this procedure is used only updating the status to created
@@ -772,9 +764,7 @@ AS
     AND     SopInstanceUid = ISNULL(@sopInstanceUid, SopInstanceUid)
 
     IF (@@ROWCOUNT = 0)
-    BEGIN
         THROW 50404, 'Instance not found', 1;
-    END
 
     INSERT INTO dbo.DeletedInstance
     (StudyInstanceUid, SeriesInstanceUid, SopInstanceUid, Watermark, DeletedDateTime, RetryCount, CleanupAfter)
@@ -985,4 +975,132 @@ BEGIN
     FROM    dbo.ChangeFeed
     ORDER BY Sequence DESC
 END
+GO
+
+
+CREATE PROCEDURE dbo.AddCustomTags
+    @customTags UDTCustomTag READONLY
+AS
+    SET NOCOUNT ON
+
+    SET XACT_ABORT ON
+    BEGIN TRANSACTION
+        -- Check if any tag already exist
+        SELECT tags1.[Key] FROM dbo.CustomTag as tags1 INNER JOIN @customTags  as tags2 on tags1.Path = tags2.Path
+	    DECLARE @existCount AS BIGINT
+	    SET @existCount = @@ROWCOUNT
+        IF @existCount <> 0
+            THROW 50410, 'custom tag already exist', @existCount
+
+        --add to table 
+        INSERT INTO dbo.CustomTag ([Key], Path, VR, Level, Status)
+        OUTPUT INSERTED.[Key],INSERTED.Path,INSERTED.VR,INSERTED.Level,INSERTED.Status
+        SELECT NEXT VALUE FOR TagKeySequence,Path,VR,Level,2 FROM @customTags
+
+    COMMIT TRANSACTION
+GO
+
+CREATE PROCEDURE dbo.GetLatestWatermark
+AS
+    SET NOCOUNT ON
+    SET XACT_ABORT ON
+    SELECT MAX(Watermark) FROM dbo.Instance
+GO
+
+
+CREATE PROCEDURE dbo.AddCustomTagIndexString
+    @tagKey as BIGINT,  
+    @studyInstanceUid VARCHAR(64),
+    @seriesInstanceUid VARCHAR(64),
+    @sopInstanceUid VARCHAR(64),    
+    @tagValue NVARCHAR(64)
+AS
+    SET NOCOUNT ON
+    SET XACT_ABORT ON
+    BEGIN TRANSACTION
+        -- get instance information
+	    DECLARE @studyKey as BIGINT
+        DECLARE @seriesKey as BIGINT
+        DECLARE @instanceKey as BIGINT
+        DECLARE @tagLevel as TINYINT
+        DECLARE @tagStatus as TINYINT
+
+        -- check if tag is valid
+        SELECT @tagLevel = [Level], @tagStatus = [Status] FROM dbo.CustomTag WHERE [Key] = @tagKey
+        
+        IF (@@ROWCOUNT = 0)        
+            THROW 50411, 'customtag not exist', @tagKey
+        
+
+        -- only add index when status is Reindexing
+        IF (@tagStatus <> 2)
+            THROW 50412, 'customtag is not in valid status', @tagKey
+
+        -- get study key
+        SELECT @studyKey = StudyKey FROM dbo.Study  WHERE StudyInstanceUid=@studyInstanceUid
+        IF (@@ROWCOUNT = 0)        
+            THROW 50414, 'study does not exist', @studyInstanceUid
+
+        IF(@tagLevel=3) -- tag is on study level
+        BEGIN
+            -- check if already exist on this study
+            SELECT TagKey FROM dbo.CustomTagIndexString WHERE TagKey = @tagKey AND StudyKey = @studyKey
+            IF (@@ROWCOUNT <> 0)
+                THROW 50413, 'customtag is already index on study', @TagKey
+
+            INSERT INTO dbo.CustomTagIndexString
+                (TagKey, StudyKey, StudyInstanceUid, TagValue)
+            VALUES
+                (@tagKey, @studyKey, @studyInstanceUid, @tagValue)
+        END
+
+        -- get series key
+        SELECT @seriesKey=SeriesKey FROM dbo.Series 
+            WHERE SeriesInstanceUid=@seriesInstanceUid AND StudyKey=@studyKey
+        IF (@@ROWCOUNT = 0)
+            THROW 50415, 'series does not exist', @seriesInstanceUid
+
+        IF(@tagValue=2) -- tag is on series level
+        BEGIN
+           -- check if already exist on this Series
+            SELECT TagKey FROM dbo.CustomTagIndexString 
+                WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey
+            if (@@ROWCOUNT <> 0)
+                THROW 50413, 'customtag is already index on series', @TagKey
+
+            INSERT INTO dbo.CustomTagIndexString
+                (TagKey, StudyKey,Serieskey, StudyInstanceUid,SeriesInstanceUid, TagValue)
+            VALUES
+                (@tagKey, @studyKey,@seriesKey, @studyInstanceUid,@seriesInstanceUid, @tagValue)
+        END
+
+        -- get instance key for valid instance
+        SELECT @instanceKey = InstanceKey FROM dbo.Instance  
+            WHERE SopInstanceUid=@sopInstanceUid AND StudyKey=@studyKey AND SeriesKey=@seriesKey AND Status = 1
+        IF (@@ROWCOUNT = 0)
+            THROW 50416, 'instance does not exist', @seriesInstanceUid
+
+        IF(@tagValue=3) -- tag is on instance level
+        BEGIN
+            -- check if already exist on this Instance
+            SELECT TagKey FROM dbo.CustomTagIndexString 
+                WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey AND InstanceKey = @instanceKey
+            INSERT INTO dbo.CustomTagIndexString
+                (TagKey, StudyKey,Serieskey,InstanceKey, StudyInstanceUid,SeriesInstanceUid,SopInstanceUid, TagValue)
+            VALUES
+                (@tagKey, @studyKey,@seriesKey,@instanceKey, @studyInstanceUid,@seriesInstanceUid,@sopInstanceUid, @tagValue)
+        END
+    COMMIT TRANSACTION
+GO
+
+CREATE PROCEDURE dbo.GetVersionedInstances
+    @endWatermark  AS BIGINT,
+    @top AS INT,
+    @status AS TINYINT
+AS
+    SET NOCOUNT ON
+    SET XACT_ABORT ON
+    SELECT TOP (@top) StudyInstanceUid, SeriesInstanceUid, SopInstanceUid, Watermark FROM dbo.Instance
+        WHERE  Status = @status AND Watermark <= @endWatermark 
+            ORDER BY Watermark DESC
 GO

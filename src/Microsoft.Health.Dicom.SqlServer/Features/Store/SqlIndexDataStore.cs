@@ -285,5 +285,15 @@ namespace Microsoft.Health.Dicom.SqlServer.Features.Store
                 }
             }
         }
+
+        public async Task<long?> GetLatestInstanceAsync(CancellationToken cancellationToken)
+        {
+            using (SqlConnectionWrapper sqlConnectionWrapper = await _sqlConnectionFactoryWrapper.ObtainSqlConnectionWrapperAsync(cancellationToken))
+            using (SqlCommandWrapper sqlCommandWrapper = sqlConnectionWrapper.CreateSqlCommand())
+            {
+                VLatest.GetLatestWatermark.PopulateCommand(sqlCommandWrapper);
+                return (long?)(await sqlCommandWrapper.ExecuteScalarAsync(cancellationToken));
+            }
+        }
     }
 }

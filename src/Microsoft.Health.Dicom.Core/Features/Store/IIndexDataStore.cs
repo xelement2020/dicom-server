@@ -18,6 +18,8 @@ namespace Microsoft.Health.Dicom.Core.Features.Store
     /// </summary>
     public interface IIndexDataStore
     {
+        Task<long?> GetLatestInstanceAsync(CancellationToken cancellationToken = default);
+
         /// <summary>
         /// Asynchronously creates a new instance index.
         /// </summary>

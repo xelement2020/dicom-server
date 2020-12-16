@@ -258,5 +258,26 @@ namespace Microsoft.Health.Dicom.Core.Features.Store
                 throw;
             }
         }
+
+        public async Task<long?> GetLatestInstanceAsync(CancellationToken cancellationToken = default)
+        {
+            // TODO: update log
+            LogIncrementDeletedInstanceRetryAsyncDelegate(_logger, null, default, null);
+
+            try
+            {
+                long? returnValue = await _indexDataStore.GetLatestInstanceAsync(cancellationToken);
+
+                LogOperationSucceededDelegate(_logger, null);
+
+                return returnValue;
+            }
+            catch (Exception ex)
+            {
+                LogOperationFailedDelegate(_logger, ex);
+
+                throw;
+            }
+        }
     }
 }
