@@ -7,6 +7,7 @@ using EnsureThat;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Health.Dicom.Core.Configs;
 using Microsoft.Health.Dicom.Core.Features.ChangeFeed;
+using Microsoft.Health.Dicom.Core.Features.CustomTag;
 using Microsoft.Health.Dicom.Core.Features.Delete;
 using Microsoft.Health.Dicom.Core.Features.Query;
 using Microsoft.Health.Dicom.Core.Features.Retrieve;
@@ -126,6 +127,26 @@ namespace Microsoft.Health.Dicom.Core.Modules
                 .AsImplementedInterfaces();
 
             services.Add<ETagGenerator>()
+                .Scoped()
+                .AsSelf()
+                .AsImplementedInterfaces();
+
+            services.Add<InstanceIndexer>()
+               .Scoped()
+               .AsSelf()
+               .AsImplementedInterfaces();
+
+            services.Add<ReindexJob>()
+               .Scoped()
+               .AsSelf()
+               .AsImplementedInterfaces();
+
+            services.Add<CustomTagService>()
+                .Scoped()
+                .AsSelf()
+                .AsImplementedInterfaces();
+
+            services.Add<CustomTagIndexService>()
                 .Scoped()
                 .AsSelf()
                 .AsImplementedInterfaces();

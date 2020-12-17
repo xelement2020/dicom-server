@@ -13,7 +13,11 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
 {
     public interface ICustomTagStore
     {
-        Task<IEnumerable<CustomTagEntry>> AddCustomTagsAsync(IEnumerable<CustomTagEntry> customTags, CancellationToken cancellationToken = default);
+        Task<long> AddCustomTagAsync(string key, string vr, CustomTagLevel leve, CustomTagStatus status, CancellationToken cancellationToken = default);
+
+        Task UpdateCustomTagStatusAsync(long key, CustomTagStatus status, CancellationToken cancellationToken = default);
+
+        Task DeleteCustomTagAsync(long key, CancellationToken cancellationToken = default);
 
         Task<IEnumerable<VersionedInstanceIdentifier>> GetVersionedInstancesAsync(long endWatermark, int top = 10, IndexStatus indexStatus = IndexStatus.Created, CancellationToken cancellationToken = default);
     }

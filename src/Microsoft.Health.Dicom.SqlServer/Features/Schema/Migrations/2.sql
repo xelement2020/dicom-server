@@ -452,15 +452,6 @@ CREATE SEQUENCE dbo.TagKeySequence
     CACHE 1000
 GO
 
-CREATE TYPE dbo.UDTCustomTag as TABLE(
-    [Key]                BIGINT                       NOT NULL, -- PK
-    Path                  VARCHAR(64)                  NOT NULL, -- Support to up to 8 embed levels
-    VR                    VARCHAR(2)                   NOT NULL,
-    Level                 TINYINT                      NOT NULL,
-    Status                TINYINT                      NOT NULL
-)
-GO
-
 /*************************************************************
     Stored procedures for adding an instance.
 **************************************************************/
@@ -977,26 +968,58 @@ BEGIN
 END
 GO
 
-
-CREATE PROCEDURE dbo.AddCustomTags
-    @customTags UDTCustomTag READONLY
+CREATE PROCEDURE dbo.AddCustomTag (
+    @path  VARCHAR(64),
+    @vr   VARCHAR(2),
+    @level  TINYINT,
+    @status TINYINT
+)
 AS
     SET NOCOUNT ON
 
     SET XACT_ABORT ON
     BEGIN TRANSACTION
+        DECLARE @key BIGINT
         -- Check if any tag already exist
-        SELECT tags1.[Key] FROM dbo.CustomTag as tags1 INNER JOIN @customTags  as tags2 on tags1.Path = tags2.Path
-	    DECLARE @existCount AS BIGINT
-	    SET @existCount = @@ROWCOUNT
-        IF @existCount <> 0
-            THROW 50410, 'custom tag already exist', @existCount
+        SELECT @key = [Key] FROM dbo.CustomTag WHERE Path=@path
+	    
+        IF @@ROWCOUNT <> 0
+            THROW 50410, 'custom tag already exist', @key
 
         --add to table 
+        SET @key =  NEXT VALUE FOR TagKeySequence
         INSERT INTO dbo.CustomTag ([Key], Path, VR, Level, Status)
-        OUTPUT INSERTED.[Key],INSERTED.Path,INSERTED.VR,INSERTED.Level,INSERTED.Status
-        SELECT NEXT VALUE FOR TagKeySequence,Path,VR,Level,2 FROM @customTags
+        VALUES(@key,@path,@vr,@level,@status) -- status as reindexing
+        SELECT @key
+    COMMIT TRANSACTION
+GO
 
+CREATE PROCEDURE dbo.DeleteCustomTag (
+    @key  BIGINT
+)
+AS
+    SET NOCOUNT ON
+    SET XACT_ABORT ON
+    BEGIN TRANSACTION
+        DELETE FROM dbo.CustomTag WHERE [Key]=@key
+        IF @@ROWCOUNT = 0
+            THROW 50417,'Tag not found',@key
+    COMMIT TRANSACTION
+GO
+
+CREATE PROCEDURE dbo.UpdateCustomTagStatus (
+    @key  BIGINT,
+    @status TINYINT
+)
+AS
+    SET NOCOUNT ON
+    SET XACT_ABORT ON
+
+    BEGIN TRANSACTION
+        UPDATE dbo.CustomTag
+        SET Status = @status WHERE [Key]=@key
+        IF @@ROWCOUNT = 0
+            THROW 50417,'Tag not found',@key
     COMMIT TRANSACTION
 GO
 
@@ -1006,7 +1029,6 @@ AS
     SET XACT_ABORT ON
     SELECT MAX(Watermark) FROM dbo.Instance
 GO
-
 
 CREATE PROCEDURE dbo.AddCustomTagIndexString
     @tagKey as BIGINT,  
@@ -1033,7 +1055,7 @@ AS
         
 
         -- only add index when status is Reindexing
-        IF (@tagStatus <> 2)
+        IF @tagStatus <> 1 AND @tagStatus <>2
             THROW 50412, 'customtag is not in valid status', @tagKey
 
         -- get study key
@@ -1060,13 +1082,13 @@ AS
         IF (@@ROWCOUNT = 0)
             THROW 50415, 'series does not exist', @seriesInstanceUid
 
-        IF(@tagValue=2) -- tag is on series level
+        IF(@tagLevel=2) -- tag is on series level
         BEGIN
            -- check if already exist on this Series
             SELECT TagKey FROM dbo.CustomTagIndexString 
                 WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey
             if (@@ROWCOUNT <> 0)
-                THROW 50413, 'customtag is already index on series', @TagKey
+                THROW 50413, 'customtag is already index on series', @tagKey
 
             INSERT INTO dbo.CustomTagIndexString
                 (TagKey, StudyKey,Serieskey, StudyInstanceUid,SeriesInstanceUid, TagValue)
@@ -1080,16 +1102,23 @@ AS
         IF (@@ROWCOUNT = 0)
             THROW 50416, 'instance does not exist', @seriesInstanceUid
 
-        IF(@tagValue=3) -- tag is on instance level
-        BEGIN
-            -- check if already exist on this Instance
-            SELECT TagKey FROM dbo.CustomTagIndexString 
-                WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey AND InstanceKey = @instanceKey
-            INSERT INTO dbo.CustomTagIndexString
-                (TagKey, StudyKey,Serieskey,InstanceKey, StudyInstanceUid,SeriesInstanceUid,SopInstanceUid, TagValue)
-            VALUES
-                (@tagKey, @studyKey,@seriesKey,@instanceKey, @studyInstanceUid,@seriesInstanceUid,@sopInstanceUid, @tagValue)
-        END
+        IF(@tagLevel=1) -- tag is on instance level
+            BEGIN
+                -- check if already exist on this Instance
+                SELECT TagKey FROM dbo.CustomTagIndexString 
+                    WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey AND InstanceKey = @instanceKey
+
+                IF (@@ROWCOUNT <> 0)
+                    THROW 50417, 'customtag is already index on instance', @TagKey
+
+                INSERT INTO dbo.CustomTagIndexString
+                    (TagKey, StudyKey,SeriesKey,InstanceKey, StudyInstanceUid,SeriesInstanceUid,SopInstanceUid, TagValue)
+                VALUES
+                    (@tagKey, @studyKey,@seriesKey,@instanceKey, @studyInstanceUid,@seriesInstanceUid,@sopInstanceUid, @tagValue)
+            END
+        ELSE
+            THROW 50417,'Invalid tag level',@tagLevel
+
     COMMIT TRANSACTION
 GO
 

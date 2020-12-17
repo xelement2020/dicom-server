@@ -22,7 +22,7 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
         {
             EnsureArg.IsNotNull(customTagStore, nameof(customTagStore));
             EnsureArg.IsNotNull(indexDataStore, nameof(indexDataStore));
-            EnsureArg.IsNotNull(_reindexJob, nameof(reindexJob));
+            EnsureArg.IsNotNull(reindexJob, nameof(reindexJob));
 
             _customTagStore = customTagStore;
             _indexDataStore = indexDataStore;
@@ -31,16 +31,28 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
 
         public async Task<AddCustomTagResponse> AddCustomTagAsync(IEnumerable<CustomTagEntry> customTags, CancellationToken cancellationToken = default)
         {
-            IEnumerable<CustomTagEntry> entries = await _customTagStore.AddCustomTagsAsync(customTags, cancellationToken);
+            foreach (var tag in customTags)
+            {
+                long key = await _customTagStore.AddCustomTagAsync(tag.Path, tag.VR, tag.Level, CustomTagStatus.Reindexing);
+                tag.Key = key;
+                tag.Status = CustomTagStatus.Reindexing;
+            }
 
             long? lastWatermark = await _indexDataStore.GetLatestInstanceAsync(cancellationToken);
             if (lastWatermark.HasValue)
             {
                 // if lastWatermark doesn't exist, means no instance in database
-                await _reindexJob.ReindexAsync(entries, lastWatermark.Value);
+                await _reindexJob.ReindexAsync(customTags, lastWatermark.Value);
             }
 
-            return new AddCustomTagResponse(entries, string.Empty);
+            // Update tab status
+            foreach (var tag in customTags)
+            {
+                await _customTagStore.UpdateCustomTagStatusAsync(tag.Key, CustomTagStatus.Added);
+                tag.Status = CustomTagStatus.Added;
+            }
+
+            return new AddCustomTagResponse(customTags, string.Empty);
         }
     }
 }

@@ -39,10 +39,13 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
                     break;
                 }
 
+                instances = instances.OrderByDescending(item => item.Version);
                 foreach (var instance in instances)
                 {
                     await _instanceIndexer.IndexInstanceAsync(customTags, instance, cancellationToken);
                 }
+
+                endWatermark = instances.Last().Version - 1;
             }
         }
     }

@@ -4,7 +4,6 @@
 // -------------------------------------------------------------------------------------------------
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EnsureThat;
@@ -17,47 +16,37 @@ using Microsoft.Health.SqlServer.Features.Storage;
 
 namespace Microsoft.Health.Dicom.SqlServer.Features.CustomTag
 {
-    internal class CustomTagStore : ICustomTagStore
+    internal class SqlCustomTagStore : ICustomTagStore
     {
         private readonly SqlConnectionWrapperFactory _sqlConnectionWrapperFactory;
 
-        public CustomTagStore(SqlConnectionWrapperFactory sqlConnectionWrapperFactory)
+        public SqlCustomTagStore(SqlConnectionWrapperFactory sqlConnectionWrapperFactory)
         {
             EnsureArg.IsNotNull(sqlConnectionWrapperFactory, nameof(sqlConnectionWrapperFactory));
 
             _sqlConnectionWrapperFactory = sqlConnectionWrapperFactory;
         }
 
-        public async Task<IEnumerable<CustomTagEntry>> AddCustomTagsAsync(IEnumerable<CustomTagEntry> customTags, CancellationToken cancellationToken = default)
+        public async Task<long> AddCustomTagAsync(string path, string vr, CustomTagLevel level, CustomTagStatus status, CancellationToken cancellationToken = default)
         {
-            List<CustomTagEntry> results = new List<CustomTagEntry>();
             using (SqlConnectionWrapper sqlConnectionWrapper = await _sqlConnectionWrapperFactory.ObtainSqlConnectionWrapperAsync(cancellationToken))
             using (SqlCommandWrapper sqlCommandWrapper = sqlConnectionWrapper.CreateSqlCommand())
             {
-                VLatest.AddCustomTags.PopulateCommand(sqlCommandWrapper, customTags.Select(item => ConvertToCustomTagRow(item)));
+                VLatest.AddCustomTag.PopulateCommand(sqlCommandWrapper, path, vr, (byte)level, (byte)status);
 
-                using (var reader = await sqlCommandWrapper.ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken))
-                {
-                    while (await reader.ReadAsync(cancellationToken))
-                    {
-                        (long rKey, string rPath, string rVR, byte rLevel, byte rStatus) = reader.ReadRow(
-                               VLatest.CustomTag.Key,
-                               VLatest.CustomTag.Path,
-                               VLatest.CustomTag.VR,
-                               VLatest.CustomTag.Level,
-                               VLatest.CustomTag.Status);
-
-                        results.Add(new CustomTagEntry(
-                               rKey,
-                               rPath,
-                               rVR,
-                               (CustomTagLevel)rLevel,
-                               (CustomTagStatus)rStatus));
-                    }
-                }
+                return (long)await sqlCommandWrapper.ExecuteScalarAsync(cancellationToken);
             }
+        }
 
-            return results;
+        public async Task DeleteCustomTagAsync(long key, CancellationToken cancellationToken = default)
+        {
+            using (SqlConnectionWrapper sqlConnectionWrapper = await _sqlConnectionWrapperFactory.ObtainSqlConnectionWrapperAsync(cancellationToken))
+            using (SqlCommandWrapper sqlCommandWrapper = sqlConnectionWrapper.CreateSqlCommand())
+            {
+                VLatest.DeleteCustomTag.PopulateCommand(sqlCommandWrapper, key);
+
+                await sqlCommandWrapper.ExecuteScalarAsync(cancellationToken);
+            }
         }
 
         public async Task<IEnumerable<VersionedInstanceIdentifier>> GetVersionedInstancesAsync(long endWatermark, int top = 10, IndexStatus indexStatus = IndexStatus.Created, CancellationToken cancellationToken = default)
@@ -90,14 +79,14 @@ namespace Microsoft.Health.Dicom.SqlServer.Features.CustomTag
             return results;
         }
 
-        private VLatest.UDTCustomTagRow ConvertToCustomTagRow(CustomTagEntry customTag)
+        public async Task UpdateCustomTagStatusAsync(long key, CustomTagStatus status, CancellationToken cancellationToken = default)
         {
-            return new VLatest.UDTCustomTagRow(
-                customTag.Key,
-                customTag.Path,
-                customTag.VR,
-                (byte)customTag.Level,
-                (byte)customTag.Status);
+            using (SqlConnectionWrapper sqlConnectionWrapper = await _sqlConnectionWrapperFactory.ObtainSqlConnectionWrapperAsync(cancellationToken))
+            using (SqlCommandWrapper sqlCommandWrapper = sqlConnectionWrapper.CreateSqlCommand())
+            {
+                VLatest.UpdateCustomTagStatus.PopulateCommand(sqlCommandWrapper, key, (byte)status);
+                await sqlCommandWrapper.ExecuteScalarAsync(cancellationToken);
+            }
         }
     }
 }
