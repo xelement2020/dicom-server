@@ -73,6 +73,50 @@ CREATE UNIQUE CLUSTERED INDEX IXC_CustomTagIndexString on dbo.CustomTagIndexStri
 GO
 
 /*************************************************************
+    Custom Tag Index Long Table    
+**************************************************************/
+CREATE TABLE dbo.CustomTagIndexLong (
+    TagKey   BIGINT   NOT NULL, -- PK
+    StudyKey BIGINT NOT NULL,    
+    SeriesKey BIGINT NULL,    
+    InstanceKey BIGINT NULL,        
+    StudyInstanceUid VARCHAR(64) NOT NULL,
+    SeriesInstanceUid VARCHAR(64) NULL,
+    SopInstanceUid VARCHAR(64) NULL,    
+    TagValue BIGINT NOT NULL,
+    Watermark               BIGINT                     NOT NULL,
+)
+
+-- TODO:  optimize indexes
+CREATE UNIQUE CLUSTERED INDEX IXC_CustomTagIndexLong on dbo.CustomTagIndexLong
+(
+    TagKey
+)
+GO
+
+/*************************************************************
+    Custom Tag Index DateTime Table    
+**************************************************************/
+CREATE TABLE dbo.CustomTagIndexDateTime (
+    TagKey   BIGINT   NOT NULL, -- PK
+    StudyKey BIGINT NOT NULL,    
+    SeriesKey BIGINT NULL,    
+    InstanceKey BIGINT NULL,        
+    StudyInstanceUid VARCHAR(64) NOT NULL,
+    SeriesInstanceUid VARCHAR(64) NULL,
+    SopInstanceUid VARCHAR(64) NULL,    
+    TagValue DATETIME2(7) NOT NULL,
+    Watermark               BIGINT                     NOT NULL,
+)
+
+-- TODO:  optimize indexes
+CREATE UNIQUE CLUSTERED INDEX IXC_CustomTagIndexDateTime on dbo.CustomTagIndexDateTime
+(
+    TagKey
+)
+GO
+
+/*************************************************************
     Instance Table
     Dicom instances with unique Study, Series and Instance Uid
 **************************************************************/
@@ -1031,6 +1075,7 @@ AS
     SELECT MAX(Watermark) FROM dbo.Instance
 GO
 
+
 CREATE PROCEDURE dbo.AddCustomTagIndexString
     @tagKey as BIGINT,  
     @studyInstanceUid VARCHAR(64),
@@ -1146,6 +1191,131 @@ AS
                 END
 
                 INSERT INTO dbo.CustomTagIndexString
+                    (TagKey, StudyKey,SeriesKey,InstanceKey, StudyInstanceUid,SeriesInstanceUid,SopInstanceUid, TagValue,Watermark)
+                VALUES
+                    (@tagKey, @studyKey,@seriesKey,@instanceKey, @studyInstanceUid,@seriesInstanceUid,@sopInstanceUid, @tagValue, @watermark)
+            END
+        ELSE
+            THROW 50417,'Invalid tag level',@tagLevel
+
+    COMMIT TRANSACTION
+GO
+
+CREATE PROCEDURE dbo.AddCustomTagIndexDateTime
+    @tagKey as BIGINT,  
+    @studyInstanceUid VARCHAR(64),
+    @seriesInstanceUid VARCHAR(64),
+    @sopInstanceUid VARCHAR(64),    
+    @tagValue DATETIME2(7),
+    @watermark BIGINT     
+AS
+    SET NOCOUNT ON
+    SET XACT_ABORT ON
+    BEGIN TRANSACTION
+        -- get instance information
+	    DECLARE @studyKey as BIGINT
+        DECLARE @seriesKey as BIGINT
+        DECLARE @instanceKey as BIGINT
+        DECLARE @tagLevel as TINYINT
+        DECLARE @tagStatus as TINYINT
+        DECLARE @existingWatermark as BIGINT
+
+        -- check if tag is valid
+        SELECT @tagLevel = [Level], @tagStatus = [Status] FROM dbo.CustomTag WHERE [Key] = @tagKey
+        
+        IF (@@ROWCOUNT = 0)        
+            THROW 50411, 'customtag not exist', @tagKey
+        
+
+        -- add index only when tag is reindexing or added
+        IF @tagStatus <> 1 AND @tagStatus <> 2
+            THROW 50412, 'customtag is not in valid status', @tagKey
+
+        -- get study key
+        SELECT @studyKey = StudyKey FROM dbo.Study  WHERE StudyInstanceUid=@studyInstanceUid
+        IF (@@ROWCOUNT = 0)        
+            THROW 50414, 'study does not exist', @studyInstanceUid
+
+        IF @tagLevel = 3 -- tag is on study level
+        BEGIN
+            -- check if already exist on this study
+            SELECT @existingWatermark = Watermark FROM dbo.CustomTagIndexDateTime WHERE TagKey = @tagKey AND StudyKey = @studyKey
+            IF (@@ROWCOUNT <> 0)
+            BEGIN
+                IF @existingWatermark > @watermark
+                    THROW 50510, 'customtag has been indexed on a more recent instance', @existingWatermark
+                IF @existingWatermark = @watermark
+                    THROW 50512, 'customtag has been indexed on this instance', @existingWatermark
+                -- update value
+                UPDATE dbo.CustomTagIndexString
+                SET TagValue = @tagValue,
+                    Watermark = @watermark
+                WHERE TagKey = @tagKey AND StudyKey = @studyKey
+            END
+                
+            -- not exist, insert new value
+            INSERT INTO dbo.CustomTagIndexDateTime
+                (TagKey, StudyKey, StudyInstanceUid, TagValue, Watermark)
+            VALUES
+                (@tagKey, @studyKey, @studyInstanceUid, @tagValue, @watermark)
+        END
+
+        -- get series key
+        SELECT @seriesKey=SeriesKey FROM dbo.Series 
+            WHERE SeriesInstanceUid=@seriesInstanceUid AND StudyKey=@studyKey 
+        IF (@@ROWCOUNT = 0)
+            THROW 50415, 'series does not exist', @seriesInstanceUid
+
+        IF (@tagLevel=2) -- tag is on series level
+        BEGIN
+           -- check if already exist on this Series
+            SELECT @existingWatermark = Watermark FROM dbo.CustomTagIndexDateTime 
+                WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey
+            IF (@@ROWCOUNT <> 0)
+            BEGIN
+                IF @existingWatermark > @watermark
+                    THROW 50510, 'customtag has been indexed on a more recent instance', @existingWatermark
+                IF @existingWatermark = @watermark
+                    THROW 50512, 'customtag has been indexed on this instance', @existingWatermark
+                -- update value
+                UPDATE dbo.CustomTagIndexDateTime
+                SET TagValue = @tagValue,
+                    Watermark = @watermark
+                WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey
+            END
+
+            INSERT INTO dbo.CustomTagIndexDateTime
+                (TagKey, StudyKey,Serieskey, StudyInstanceUid,SeriesInstanceUid, TagValue,Watermark)
+            VALUES
+                (@tagKey, @studyKey,@seriesKey, @studyInstanceUid,@seriesInstanceUid, @tagValue,@watermark)
+        END
+
+        -- get instance key for valid instance
+        SELECT @instanceKey = InstanceKey FROM dbo.Instance  
+            WHERE SopInstanceUid=@sopInstanceUid AND StudyKey=@studyKey AND SeriesKey=@seriesKey AND Status = 1
+        IF (@@ROWCOUNT = 0)
+            THROW 50416, 'instance does not exist', @seriesInstanceUid
+
+        IF(@tagLevel=1) -- tag is on instance level
+            BEGIN
+                -- check if already exist on this Instance
+                SELECT @existingWatermark = Watermark FROM dbo.CustomTagIndexDateTime 
+                    WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey AND InstanceKey = @instanceKey
+
+                IF (@@ROWCOUNT <> 0)
+                BEGIN
+                    IF @existingWatermark > @watermark
+                        THROW 50510, 'customtag has been indexed on a more recent instance', @existingWatermark
+                    IF @existingWatermark = @watermark
+                        THROW 50512, 'customtag has been indexed on this instance', @existingWatermark
+                    -- update value
+                    UPDATE dbo.CustomTagIndexDateTime
+                    SET TagValue = @tagValue,
+                        Watermark = @watermark
+                    WHERE TagKey = @tagKey AND StudyKey = @studyKey AND SeriesKey = @seriesKey AND InstanceKey = @instanceKey
+                END
+
+                INSERT INTO dbo.CustomTagIndexDateTime
                     (TagKey, StudyKey,SeriesKey,InstanceKey, StudyInstanceUid,SeriesInstanceUid,SopInstanceUid, TagValue,Watermark)
                 VALUES
                     (@tagKey, @studyKey,@seriesKey,@instanceKey, @studyInstanceUid,@seriesInstanceUid,@sopInstanceUid, @tagValue, @watermark)

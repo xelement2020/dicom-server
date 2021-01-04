@@ -31,6 +31,8 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
 
         public async Task<AddCustomTagResponse> AddCustomTagAsync(IEnumerable<CustomTagEntry> customTags, CancellationToken cancellationToken = default)
         {
+            // TODO: need to handle error when tag already exist (if fail for one, fail for all?)
+            // TODO: need to validate custom tag entry
             foreach (var tag in customTags)
             {
                 long key = await _customTagStore.AddCustomTagAsync(tag.Path, tag.VR, tag.Level, CustomTagStatus.Reindexing);
@@ -45,7 +47,7 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
                 await _reindexJob.ReindexAsync(customTags, lastWatermark.Value);
             }
 
-            // Update tab status
+            // Update tag status
             foreach (var tag in customTags)
             {
                 await _customTagStore.UpdateCustomTagStatusAsync(tag.Key, CustomTagStatus.Added);
