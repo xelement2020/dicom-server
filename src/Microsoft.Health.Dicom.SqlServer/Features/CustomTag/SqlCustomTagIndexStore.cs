@@ -26,7 +26,7 @@ namespace Microsoft.Health.Dicom.SqlServer.Features.CustomTag
             _sqlConnectionWrapperFactory = sqlConnectionWrapperFactory;
         }
 
-        public async Task AddCustomTagStringIndexes(long customTagKey, InstanceIdentifier instanceIdentifier, string indexValue, CancellationToken cancellationToken = default)
+        public async Task AddCustomTagStringIndexes(long customTagKey, VersionedInstanceIdentifier instanceIdentifier, string indexValue, CancellationToken cancellationToken = default)
         {
             List<CustomTagEntry> results = new List<CustomTagEntry>();
             using (SqlConnectionWrapper sqlConnectionWrapper = await _sqlConnectionWrapperFactory.ObtainSqlConnectionWrapperAsync(cancellationToken))
@@ -38,7 +38,8 @@ namespace Microsoft.Health.Dicom.SqlServer.Features.CustomTag
                     instanceIdentifier.StudyInstanceUid,
                     instanceIdentifier.SeriesInstanceUid,
                     instanceIdentifier.SopInstanceUid,
-                    indexValue);
+                    indexValue,
+                    instanceIdentifier.Version);
 
                 try
                 {

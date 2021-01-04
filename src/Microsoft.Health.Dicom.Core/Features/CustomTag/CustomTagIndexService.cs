@@ -20,7 +20,7 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
             _customTagIndexStore = customTagIndexStore;
         }
 
-        public async Task AddCustomTagIndexes(Dictionary<long, DicomItem> customTagIndexes, InstanceIdentifier instanceIdentifier, CancellationToken cancellationToken = default)
+        public async Task AddCustomTagIndexes(Dictionary<long, DicomItem> customTagIndexes, VersionedInstanceIdentifier instanceIdentifier, CancellationToken cancellationToken = default)
         {
             foreach (var item in customTagIndexes.Keys)
             {

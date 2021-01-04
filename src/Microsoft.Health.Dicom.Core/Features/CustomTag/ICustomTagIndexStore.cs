@@ -12,6 +12,6 @@ namespace Microsoft.Health.Dicom.Core.Features.CustomTag
     public interface ICustomTagIndexStore
     {
         // TODO: make it allow add bunch indexes
-        Task AddCustomTagStringIndexes(long customTagKey, InstanceIdentifier instanceIdentifier, string indexValue, CancellationToken cancellationToken = default);
+        Task AddCustomTagStringIndexes(long customTagKey, VersionedInstanceIdentifier instanceIdentifier, string indexValue, CancellationToken cancellationToken = default);
     }
 }
